@@ -7,6 +7,8 @@ import { registerSocketHandlers } from './socket/socketHandler';
 
 const app = express();
 
+const PORT = process.env.PORT || 5500;
+
 app.use(cors());
 
 const httpServer = createServer(app);
@@ -23,6 +25,6 @@ io.on('connection', (socket) => {
   registerSocketHandlers(io, socket);
 });
 
-httpServer.listen(5500, () => {
-  console.log('Server running on port 5500');
+httpServer.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
