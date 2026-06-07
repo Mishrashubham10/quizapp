@@ -6,32 +6,105 @@ datasource db {
   provider = "postgresql"
 }
 
+// ROOM STATUS ENUMS
+enum RoomStatus {
+  WAITING
+  IN_PROGRESS
+  FINISHED
+}
+
+// QUIZ STATUS ENUMS
+enum QuizStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  FINISHED
+}
+
+// =========== USER MODEL ============
+model User {
+  id          String            @id @default(cuid())
+  username    String            @unique
+  email       String            @unique
+  password    String
+  avatarUrl   String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  hostedRooms Room[]            @relation("RoomHost")
+  memberships RoomMember[]
+  quizResults QuizParticipant[]
+}
+
+// ============== ROOM MODEL ===============
+model Room {
+  id     String @id @default(cuid())
+  code   String @unique
+  hostId String
+  host   User   @relation("RoomHost", fields: [hostId], references: [id], onDelete: Cascade)
+
+  status    RoomStatus    @default(WAITING)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  members   RoomMember[]
+  sessions  QuizSession[]
+
+  @@index([hostId])
+}
+
+// ============== ROOMMEMBER MODEL ===============
+model RoomMember {
+  id       String   @id @default(cuid())
+  roomId   String
+  userId   String
+  socketId String?
+  joinedAt DateTime @default(now())
+  room     Room     @relation(fields: [roomId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@unique([roomId, userId])
+  @@index([roomId])
+  @@index([userId])
+}
+
+// ============== QUIZ SESSION MODEL ===============
+model QuizSession {
+  id                   String            @id @default(cuid())
+  roomId               String
+  room                 Room              @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  status               QuizStatus        @default(NOT_STARTED)
+  currentQuestionIndex Int               @default(0)
+  startedAt            DateTime?
+  finishedAt           DateTime?
+  createdAt            DateTime          @default(now())
+  participants         QuizParticipant[]
+
+  @@index([roomId])
+}
+
+// ============== QUIZ PARTICIPANT MODEL ===============
+model QuizParticipant {
+  id             String      @id @default(cuid())
+  sessionId      String
+  userId         String
+  score          Int         @default(0)
+  correctAnswers Int         @default(0)
+  joinedAt       DateTime    @default(now())
+  session        QuizSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user           User        @relation(fields: [userId], references: [id])
+
+  @@unique([sessionId, userId])
+  @@index([sessionId])
+  @@index([userId])
+}
+
+// =========== QUESTION MODEL ==========
 model Question {
-  id            Int      @id @default(autoincrement())
-  question      String
+  id            String   @id @default(cuid())
+  text          String
   optionA       String
   optionB       String
   optionC       String
   optionD       String
   correctAnswer String
   createdAt     DateTime @default(now())
-}
-
-model QuizResult {
-  id        Int      @id @default(autoincrement())
-  roomId    String
-  createdAt DateTime @default(now())
-
-  players PlayerScore[]
-}
-
-model PlayerScore {
-  id Int @id @default(autoincrement())
-
-  playerName String
-  score      Int
-
-  quizResultId Int
-
-  quizResult QuizResult @relation(fields: [quizResultId], references: [id])
+  updatedAt     DateTime @updatedAt
 }

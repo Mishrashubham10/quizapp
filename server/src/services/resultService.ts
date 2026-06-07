@@ -1,29 +1,18 @@
-import { prisma } from '../lib/prisma';
-
 interface LeaderboardPlayer {
   socketId: string;
   name: string;
   score: number;
 }
 
+// The previous QuizResult/PlayerScore tables were removed from the Prisma
+// schema. Keep this helper available for callers while results storage is
+// redesigned around QuizSession/QuizParticipant.
 export const saveQuizResult = async (
   roomId: string,
   leaderboard: LeaderboardPlayer[],
 ) => {
-  return prisma.quizResult.create({
-    data: {
-      roomId,
-
-      players: {
-        create: leaderboard.map((player) => ({
-          playerName: player.name,
-          score: player.score,
-        })),
-      },
-    },
-
-    include: {
-      players: true,
-    },
-  });
+  return {
+    roomId,
+    leaderboard,
+  };
 };

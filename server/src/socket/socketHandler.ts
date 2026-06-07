@@ -1,5 +1,8 @@
 import { Server, Socket } from 'socket.io';
 
+import * as roomService from '../services/roomService';
+import * as roomMemberService from '../services/roomMemberService';
+
 import {
   createRoom,
   joinRoom,
@@ -62,49 +65,90 @@ const sendQuestion = async (
 };
 
 export const registerSocketHandlers = (io: Server, socket: Socket) => {
-  socket.on('create_room', ({ roomId, name }) => {
-    console.log(`Creating room ${roomId} by ${name}`);
+  socket.on('create_room', async ({ roomId, name, userId }) => {
+    try {
+      if (!userId) {
+        socket.emit('error_message', 'User id is required');
 
-    const room = createRoom(roomId, {
-      socketId: socket.id,
-      name,
-    });
+        return;
+      }
 
-    socket.join(roomId);
+      console.log(`Creating room ${roomId} by ${name}`);
 
-    io.to(roomId).emit('room_updated', room);
+      // Memory
+      const room = createRoom(roomId, {
+        socketId: socket.id,
+        name,
+      });
+
+      // Database
+      await roomService.createRoom(roomId, userId);
+
+      await roomMemberService.addMember(roomId, socket.id, userId);
+
+      socket.join(roomId);
+
+      io.to(roomId).emit('room_updated', room);
+    } catch (error) {
+      console.error(error);
+
+      socket.emit('error_message', 'Failed to create room');
+    }
   });
 
-  socket.on('join_room', ({ roomId, name }) => {
-    console.log(`${name} joining ${roomId}`);
+  socket.on('join_room', async ({ roomId, name, userId }) => {
+    try {
+      if (!userId) {
+        socket.emit('error_message', 'User id is required');
 
-    const room = joinRoom(roomId, {
-      socketId: socket.id,
-      name,
-    });
+        return;
+      }
+
+      console.log(`${name} joining ${roomId}`);
+
+      // Memory
+      const room = joinRoom(roomId, {
+        socketId: socket.id,
+        name,
+      });
+
+      if (!room) {
+        socket.emit('error_message', 'Room not found');
+
+        return;
+      }
+
+      // Database
+      await roomMemberService.addMember(roomId, socket.id, userId);
+
+      socket.join(roomId);
+
+      io.to(roomId).emit('room_updated', room);
+    } catch (error) {
+      console.error(error);
+
+      socket.emit('error_message', 'Failed to join room');
+    }
+  });
+
+  socket.on('start_quiz', async ({ roomId }) => {
+    const room = await roomService.getRoom(roomId);
 
     if (!room) {
-      socket.emit('error_message', 'Room not found');
-
       return;
     }
 
-    socket.join(roomId);
-
-    io.to(roomId).emit('room_updated', room);
-  });
-
-  socket.on('start_quiz', ({ roomId }) => {
-    const room = getRoom(roomId);
-
-    if (!room) {
-      return;
-    }
+    const users = room.members
+      .filter((member) => member.socketId)
+      .map((member) => ({
+        socketId: member.socketId!,
+        name: member.user.username,
+      }));
 
     io.to(roomId).emit('quiz_countdown');
 
     setTimeout(() => {
-      startQuiz(roomId, room.users);
+      startQuiz(roomId, users);
 
       sendQuestion(io, roomId, 0);
     }, 3000);
@@ -114,17 +158,25 @@ export const registerSocketHandlers = (io: Server, socket: Socket) => {
     submitAnswer(roomId, socket.id, answer);
   });
 
-  socket.on('disconnect', () => {
-    const room = removeUser(socket.id);
+  socket.on('disconnect', async () => {
+    try {
+      // Database
+      await roomMemberService.removeMember(socket.id);
 
-    if (!room) {
+      // Memory
+      const room = removeUser(socket.id);
+
+      if (!room) {
+        console.log(`Disconnected: ${socket.id}`);
+
+        return;
+      }
+
+      io.to(room.id).emit('room_updated', room);
+
       console.log(`Disconnected: ${socket.id}`);
-
-      return;
+    } catch (error) {
+      console.error(error);
     }
-
-    io.to(room.id).emit('room_updated', room);
-
-    console.log(`Disconnected: ${socket.id}`);
   });
 };
