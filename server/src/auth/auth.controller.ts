@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
-import { registerUser } from './auth.service';
+import { registerUser, loginUser } from './auth.service';
+import { generateAccessToken, generateRefreshToken } from './jwt';
 
 /*
 ======== REGISTER CONTROLLER ===========
@@ -34,4 +35,68 @@ export const register = async (req: Request, res: Response) => {
       message: error instanceof Error ? error.message : 'Registration failed',
     });
   }
+};
+
+/*
+======== LOGIN CONTROLLER ===========
+======== ROUTE - POST ===============
+======= ENDPOINT - /API/V1/AUTH/LOGIN =========
+*/
+export const login = async (req: Request, res: Response) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        message: 'All fields are required',
+      });
+    }
+
+    const user = await loginUser(email, password);
+
+    const accessToken = generateAccessToken(user.id);
+    const refreshToken = generateRefreshToken(user.id);
+
+    res.cookie('accessToken', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 15 * 60 * 1000,
+    });
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return res.status(201).json({
+      message: 'Login successful',
+
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+      },
+    });
+  } catch (error) {
+    return res.status(400).json({
+      message: error instanceof Error ? error.message : 'Registration failed',
+    });
+  }
+};
+
+/*
+======== LOGOUT CONTROLLER ===========
+======== ROUTE - POST ===============
+======= ENDPOINT - /API/V1/AUTH/LOGOUT =========
+*/
+export const logout = async (req: Request, res: Response) => {
+  res.clearCookie('accessToken');
+  res.clearCookie('refreshToken');
+
+  return res.json({
+    message: 'Logged out successfully',
+  });
 };

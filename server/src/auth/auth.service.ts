@@ -35,3 +35,30 @@ export const registerUser = async (
     throw error;
   }
 };
+
+// LOGIN SERVICE
+export const loginUser = async (email: string, password: string) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: {
+        email,
+      },
+    });
+
+    if (!user) {
+      throw new Error('Invalid credentials');
+    }
+
+    const isPwdValid = await bcrypt.compare(password, user.password);
+
+    if (!isPwdValid) {
+      throw new Error('Invalid credentials');
+    }
+
+    return user;
+  } catch (error) {
+    console.error(error);
+
+    throw error;
+  }
+};
