@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { registerUser, loginUser, getCurrentUser } from './auth.service';
 import { generateAccessToken, generateRefreshToken } from './jwt';
 
+import jwt from 'jsonwebtoken';
+
 /*
 ======== REGISTER CONTROLLER ===========
 ======== ROUTE - POST ===============
@@ -125,7 +127,48 @@ export const getMe = async (req: Request, res: Response) => {
     res.status(200).json(user);
   } catch (error) {
     return res.status(400).json({
-      message: error instanceof Error ? error.message : 'Registration failed',
+      message: error instanceof Error ? error.message : 'Something went wrong!',
+    });
+  }
+};
+
+/*
+======== REFRESH TOKEN CONTROLLER ===========
+======== ROUTE - POST ===============
+======= ENDPOINT - /API/V1/AUTH/REFRESH =========
+*/
+export const refresh = (req: Request, res: Response) => {
+  try {
+    const refreshToken = req.cookies.refreshToken;
+
+    if (!refreshToken) {
+      return res.status(401).json({
+        message: 'Refresh token missing',
+      });
+    }
+
+    const decoded = jwt.verify(
+      refreshToken,
+      process.env.JWT_REFRESH_SECRET!,
+    ) as {
+      userId: string;
+    };
+
+    const accessToken = generateAccessToken(decoded.userId);
+
+    res.cookie('accessToken', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 15 * 60 * 1000,
+    });
+
+    return res.json({
+      message: 'Access token refreshed',
+    });
+  } catch (error) {
+    return res.status(401).json({
+      message: 'Invalid refresh token',
     });
   }
 };
