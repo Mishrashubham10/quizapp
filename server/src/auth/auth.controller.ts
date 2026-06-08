@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { registerUser, loginUser } from './auth.service';
+import { registerUser, loginUser, getCurrentUser } from './auth.service';
 import { generateAccessToken, generateRefreshToken } from './jwt';
 
 /*
@@ -82,7 +82,7 @@ export const login = async (req: Request, res: Response) => {
     });
   } catch (error) {
     return res.status(400).json({
-      message: error instanceof Error ? error.message : 'Registration failed',
+      message: error instanceof Error ? error.message : 'Login failed',
     });
   }
 };
@@ -99,4 +99,33 @@ export const logout = async (req: Request, res: Response) => {
   return res.json({
     message: 'Logged out successfully',
   });
+};
+
+/*
+======== ME CONTROLLER ===========
+======== ROUTE - POST ===============
+======= ENDPOINT - /API/V1/AUTH/ME =========
+*/
+export const getMe = async (req: Request, res: Response) => {
+  try {
+    if (!req.userId) {
+      return res.status(401).json({
+        message: 'Unauthorized',
+      });
+    }
+
+    const user = await getCurrentUser(req.userId);
+
+    if (!user) {
+      return res.status(404).json({
+        message: 'User not found',
+      });
+    }
+
+    res.status(200).json(user);
+  } catch (error) {
+    return res.status(400).json({
+      message: error instanceof Error ? error.message : 'Registration failed',
+    });
+  }
 };

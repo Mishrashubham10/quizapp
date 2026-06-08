@@ -62,3 +62,28 @@ export const loginUser = async (email: string, password: string) => {
     throw error;
   }
 };
+
+// GET CURRENT USER SERVICE
+export const getCurrentUser = async (userId: string) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: {
+        id: userId,
+      },
+
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        avatarUrl: true,
+        createdAt: true,
+      },
+    });
+
+    return user;
+  } catch (error) {
+    console.error(error);
+
+    throw error;
+  }
+};
