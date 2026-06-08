@@ -1,4 +1,3 @@
-import { socket } from './../../client/src/socket/socket';
 import dotenv from 'dotenv';
 dotenv.config();
 
