@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { socket } from '../socket/socket';
+import { socket } from '../../socket/socket';
 
-import { useQuizStore } from '../store/quizStore';
-import { useRoomStore } from '../store/roomStore';
-import { useResultStore } from '../store/resultStore';
+import { useQuizStore } from '../../store/quizStore';
+import { useRoomStore } from '../../store/roomStore';
+import { useResultStore } from '../../store/resultStore';
 
-import PageWrapper from '../components/PageWrapper';
+import PageWrapper from '../../components/PageWrapper';
 
 export default function QuizPage() {
   const navigate = useNavigate();

@@ -1,33 +1,46 @@
 import { Routes, Route } from 'react-router-dom';
 
-import HomePage from './pages/HomePage';
-import LobbyPage from './pages/LobbyPage';
+// =========== LAYOUTS ============
+import PublicLayout from './layouts/PublicLayout';
+import PrivateLayout from './layouts/PrivateLayout';
 
-import { useSocketListeners } from './hooks/useSocketListeners';
-import QuizPage from './pages/QuizPage';
-import ResultsPage from './pages/ResultPage';
-import CreateRoomPage from './pages/CreateRoomPage';
-import JoinRoomPage from './pages/JoinRoomPage';
-import CountdownPage from './pages/CountDownPage';
+// ============ PROTECTED ROUTE ===========
+import ProtectedRoute from './routes/ProtectedRotue';
+
+// ============== PUBLIC PAGES =============
+import LandingPage from './pages/public/LandingPage';
+import LoginPage from './pages/public/LoginPage';
+import RegisterPage from './pages/public/RegisterPage';
+
+// ============ PRIVATE PAGES ==============
+import DashboardPage from './pages/private/DashboardPage';
+import LobbyPage from './pages/private/LobbyPage';
+import QuizPage from './pages/private/QuizPage';
+import ResultsPage from './pages/private/ResultPage';
+import CreateRoomPage from './pages/private/CreateRoomPage';
+import JoinRoomPage from './pages/private/JoinRoomPage';
 
 function App() {
-  useSocketListeners();
-
   return (
     <Routes>
-      <Route path="/" element={<HomePage />} />
+      {/* Public */}
+      <Route element={<PublicLayout />}>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+      </Route>
 
-      <Route path="/lobby" element={<LobbyPage />} />
-
-      <Route path="/quiz" element={<QuizPage />} />
-
-      <Route path="/results" element={<ResultsPage />} />
-
-      <Route path="/create-room" element={<CreateRoomPage />} />
-
-      <Route path="/join-room" element={<JoinRoomPage />} />
-
-      <Route path="/countdown" element={<CountdownPage />} />
+      {/* Private */}
+      <Route element={<ProtectedRoute />}>
+        <Route element={<PrivateLayout />}>
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/create-room" element={<CreateRoomPage />} />
+          <Route path="/join-room" element={<JoinRoomPage />} />
+          <Route path="/lobby/:roomCode" element={<LobbyPage />} />
+          <Route path="/quiz/:roomCode" element={<QuizPage />} />
+          <Route path="/results/:sessionId" element={<ResultsPage />} />
+        </Route>
+      </Route>
     </Routes>
   );
 }

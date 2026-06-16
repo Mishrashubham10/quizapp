@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { useNavigate } from 'react-router-dom';
 
-import PageWrapper from '../components/PageWrapper';
+import PageWrapper from '../../components/PageWrapper';
 
 export default function CountdownPage() {
   const navigate = useNavigate();

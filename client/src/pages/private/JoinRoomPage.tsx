@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import PageWrapper from '../components/PageWrapper';
-import { socket } from '../socket/socket';
+import PageWrapper from '../../components/PageWrapper';
+import { socket } from '../../socket/socket';
 
 export default function JoinRoomPage() {
   const navigate = useNavigate();

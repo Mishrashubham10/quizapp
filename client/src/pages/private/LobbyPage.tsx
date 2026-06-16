@@ -1,8 +1,8 @@
-import { useRoomStore } from '../store/roomStore';
+import { useRoomStore } from '../../store/roomStore';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { socket } from '../socket/socket';
-import PageWrapper from '../components/PageWrapper';
+import { socket } from '../../socket/socket';
+import PageWrapper from '../../components/PageWrapper';
 
 export default function LobbyPage() {
   const room = useRoomStore((state) => state.room);
