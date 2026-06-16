@@ -1,48 +1,73 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import { API_URL } from './../../config/env';
+import { apiSlice } from '@/app/api/apiSlice';
 
-export const authApi = createApi({
-  reducerPath: 'authApi',
-  baseQuery: fetchBaseQuery({
-    baseUrl: `${API_URL}/api/v1/auth`,
+export interface User {
+  id: string;
+  username: string;
+  email: string;
+}
 
-    credentials: 'include',
-  }),
+export interface AuthResponse {
+  message: string;
+  user: User;
+}
 
-  tagTypes: ['User'],
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
 
+export interface RegisterRequest {
+  username: string;
+  email: string;
+  password: string;
+}
+
+export const authApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
-    register: builder.mutation({
+    register: builder.mutation<AuthResponse, RegisterRequest>({
       query: (body) => ({
-        url: '/register',
+        url: '/auth/register',
+
         method: 'POST',
+
         body,
       }),
     }),
 
-    login: builder.mutation({
+    login: builder.mutation<AuthResponse, LoginRequest>({
       query: (body) => ({
-        url: '/login',
+        url: '/auth/login',
+
         method: 'POST',
+
         body,
       }),
 
-      invalidatesTags: ['User'],
+      invalidatesTags: ['Auth'],
     }),
 
-    logout: builder.mutation({
+    logout: builder.mutation<{ message: string }, void>({
       query: () => ({
-        url: '/logout',
+        url: '/auth/logout',
+
         method: 'POST',
       }),
 
-      invalidatesTags: ['User'],
+      invalidatesTags: ['Auth'],
     }),
 
-    me: builder.query({
-      query: () => '/me',
+    me: builder.query<User, void>({
+      query: () => '/auth/me',
 
-      providesTags: ['User'],
+      providesTags: ['Auth'],
+    }),
+
+    refresh: builder.mutation<{ message: string }, void>({
+      query: () => ({
+        url: '/auth/refresh',
+
+        method: 'POST',
+      }),
     }),
   }),
 });
@@ -52,4 +77,5 @@ export const {
   useLoginMutation,
   useLogoutMutation,
   useMeQuery,
+  useRefreshMutation,
 } = authApi;
