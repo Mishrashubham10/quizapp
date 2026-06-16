@@ -12,6 +12,8 @@ import { registerSocketHandlers } from './socket/socketHandler';
 // ROUTES
 import authRoutes from './auth/auth.routes';
 import { authenticateSocket } from './socket/socketAuth';
+import roomRoutes from './rooms/rooms.routes';
+import { RoomStatus } from '@prisma/client';
 
 const app = express();
 
@@ -39,6 +41,7 @@ const io = new Server(httpServer, {
 
 // ========= AUTH ROUTE =========
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/rooms', roomRoutes);
 
 // SOCKET MIDDLEWARE
 io.use(authenticateSocket);
