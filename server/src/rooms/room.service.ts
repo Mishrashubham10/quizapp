@@ -25,6 +25,12 @@ export const createRoom = async (hostId: string) => {
       code,
 
       hostId,
+
+      members: {
+        create: {
+          userId: hostId,
+        },
+      },
     },
 
     include: {
@@ -32,6 +38,17 @@ export const createRoom = async (hostId: string) => {
         select: {
           id: true,
           username: true,
+        },
+      },
+
+      members: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+            },
+          },
         },
       },
     },

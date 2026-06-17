@@ -1,52 +1,35 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-import PageWrapper from '../../components/PageWrapper';
-import { socket } from '../../socket/socket';
-
-function generateRoomId() {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
-}
+import { useCreateRoomMutation } from '@/features/rooms/roomsApi';
+import { Button } from '@/components/ui/button';
 
 export default function CreateRoomPage() {
   const navigate = useNavigate();
 
-  const [name, setName] = useState('');
+  const [createRoom, { isLoading }] = useCreateRoomMutation();
 
-  const handleCreateRoom = () => {
-    if (!name.trim()) {
-      return;
+  const handleCreateRoom = async () => {
+    try {
+      console.log('Creating room...');
+      const room = await createRoom().unwrap();
+      console.log('Room created:', room);
+
+      navigate(`/lobby/${room.code}`);
+    } catch (error) {
+      console.error(error);
     }
-
-    const roomId = generateRoomId();
-
-    socket.emit('create_room', {
-      roomId,
-      name,
-    });
-
-    navigate('/lobby');
   };
 
   return (
-    <PageWrapper>
-      <div className="bg-white/5 p-8 rounded-2xl border border-white/10">
-        <h1 className="text-3xl font-bold mb-6">Create Room</h1>
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold">Create Room</h1>
 
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Your Name"
-          className="w-full p-4 rounded-xl bg-black/30 border border-white/10 outline-none"
-        />
+      <p className="text-muted-foreground">
+        Start a new QuizBlitz session and invite your friends.
+      </p>
 
-        <button
-          onClick={handleCreateRoom}
-          className="w-full mt-6 py-4 rounded-xl bg-cyan-500 text-black font-semibold"
-        >
-          Create Room
-        </button>
-      </div>
-    </PageWrapper>
+      <Button onClick={handleCreateRoom} disabled={isLoading}>
+        {isLoading ? 'Creating...' : 'Create Room'}
+      </Button>
+    </div>
   );
 }

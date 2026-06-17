@@ -36,8 +36,8 @@ function App() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/create-room" element={<CreateRoomPage />} />
           <Route path="/join-room" element={<JoinRoomPage />} />
-          <Route path="/lobby/:roomCode" element={<LobbyPage />} />
-          <Route path="/quiz/:roomCode" element={<QuizPage />} />
+          <Route path="/lobby/:code" element={<LobbyPage />} />
+          <Route path="/quiz/:code" element={<QuizPage />} />
           <Route path="/results/:sessionId" element={<ResultsPage />} />
         </Route>
       </Route>

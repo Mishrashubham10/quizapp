@@ -18,6 +18,9 @@ export const protect = async (
   res: Response,
   next: NextFunction,
 ) => {
+  console.log('Cookies:', req.cookies);
+  console.log('Access Token:', req.cookies.accessToken);
+
   try {
     const accessToken = req.cookies.accessToken;
 
