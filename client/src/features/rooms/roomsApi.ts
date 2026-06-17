@@ -46,6 +46,13 @@ export const roomApi = apiSlice.injectEndpoints({
     getRoom: builder.query<Room, string>({
       query: (code) => `/rooms/${code}`,
     }),
+
+    joinRoom: builder.mutation<Room, string>({
+      query: (code) => ({
+        url: `/rooms/${code}/join`,
+        method: 'POST',
+      }),
+    }),
   }),
 });
 
@@ -53,4 +60,5 @@ export const {
   useCreateRoomMutation,
 
   useGetRoomQuery,
+  useJoinRoomMutation
 } = roomApi;
