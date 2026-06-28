@@ -5,13 +5,13 @@ import { registerQuizSocket } from '../quiz/quiz.socket';
 
 export const registerSocketHandlers = (io: Server) => {
   io.on('connection', (socket) => {
-    console.log(`Client Connected: ${socket.id}`);
+    console.log(`${socket.id} connected`);
 
     registerRoomSocket(io, socket);
     registerQuizSocket(io, socket);
 
     socket.on('disconnect', () => {
-      console.log(`🔴 Client Disconnected: ${socket.id}`);
+      console.log(`${socket.id} disconnected`);
     });
   });
 };

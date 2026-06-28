@@ -7,7 +7,7 @@ import cors from 'cors';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 
-// import { registerSocketHandlers } from './modules/socket/socketHandler';
+import { registerSocketHandlers } from './modules/socket/socketHandler';
 
 // ROUTES
 import authRoutes from './modules/auth/auth.routes';
@@ -49,7 +49,7 @@ io.use(authenticateSocket);
 io.on('connection', (socket) => {
   console.log(`${socket.data.user.username} connected (${socket.id})`);
 
-  // registerSocketHandlers(io, socket);
+  registerSocketHandlers(io);
 
   socket.on('disconnect', () => {
     console.log(`${socket.data.user.username} disconnected`);
