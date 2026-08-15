@@ -12,8 +12,8 @@ import { registerSocketHandlers } from './modules/socket/socketHandler';
 // ROUTES
 import authRoutes from './modules/auth/auth.routes';
 import { authenticateSocket } from './modules/socket/socketAuth';
-import roomRoutes from './modules/rooms/rooms.routes';
-import { RoomStatus } from '@prisma/client';
+// import roomRoutes from './modules/rooms/rooms.routes';
+// import { RoomStatus } from '@prisma/client';
 
 const app = express();
 
@@ -41,7 +41,7 @@ const io = new Server(httpServer, {
 
 // ========= AUTH ROUTE =========
 app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/rooms', roomRoutes);
+// app.use('/api/v1/rooms', roomRoutes);
 
 // SOCKET MIDDLEWARE
 io.use(authenticateSocket);
@@ -49,7 +49,7 @@ io.use(authenticateSocket);
 io.on('connection', (socket) => {
   console.log(`${socket.data.user.username} connected (${socket.id})`);
 
-  registerSocketHandlers(io);
+  registerSocketHandlers(io, socket);
 
   socket.on('disconnect', () => {
     console.log(`${socket.data.user.username} disconnected`);

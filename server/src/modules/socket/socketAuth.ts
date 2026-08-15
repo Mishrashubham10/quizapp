@@ -1,6 +1,6 @@
-import { prisma } from './../lib/prisma';
 import { Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
+import { prisma } from '../../lib/prisma';
 
 export const authenticateSocket = async (
   socket: Socket,
@@ -8,7 +8,6 @@ export const authenticateSocket = async (
 ) => {
   try {
     const cookies = socket.handshake.headers.cookie;
-    console.log('SOCKET COOKIES', cookies);
 
     if (!cookies) {
       return next(new Error('Authentication required'));
@@ -31,10 +30,11 @@ export const authenticateSocket = async (
       where: {
         id: decoded.userId,
       },
-
       select: {
         id: true,
         username: true,
+        displayName: true,
+        avatarUrl: true,
       },
     });
 
@@ -46,6 +46,8 @@ export const authenticateSocket = async (
 
     next();
   } catch (error) {
+    console.error('Socket authentication failed:', error);
+
     next(new Error('Invalid token'));
   }
 };

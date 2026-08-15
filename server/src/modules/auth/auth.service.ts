@@ -1,5 +1,5 @@
-import { prisma } from '../lib/prisma';
 import bcrypt from 'bcrypt';
+import { prisma } from '../../lib/prisma';
 
 // =========== REGISTER SERVICE =============
 export const registerUser = async (
@@ -23,8 +23,9 @@ export const registerUser = async (
     const user = await prisma.user.create({
       data: {
         username,
+        displayName: username,
         email,
-        password: hashedPassword,
+        passwordHash: hashedPassword,
       },
     });
 
@@ -49,7 +50,7 @@ export const loginUser = async (email: string, password: string) => {
       throw new Error('Invalid credentials');
     }
 
-    const isPwdValid = await bcrypt.compare(password, user.password);
+    const isPwdValid = await bcrypt.compare(password, user.passwordHash);
 
     if (!isPwdValid) {
       throw new Error('Invalid credentials');

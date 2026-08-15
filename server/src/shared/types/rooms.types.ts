@@ -8,3 +8,12 @@ export interface Room {
   hostId: string;
   users: User[];
 }
+
+export interface RoomResponse {
+  id: string;
+  code: string;
+  name: string;
+  hostId: string;
+
+  status: 'WAITING' | 'STARTED' | 'FINISHED';
+}

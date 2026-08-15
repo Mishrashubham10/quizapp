@@ -6,105 +6,199 @@ datasource db {
   provider = "postgresql"
 }
 
-// ROOM STATUS ENUMS
+// ================= ENUMS =================
+
 enum RoomStatus {
   WAITING
   IN_PROGRESS
   FINISHED
 }
 
-// QUIZ STATUS ENUMS
 enum QuizStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum SessionStatus {
   NOT_STARTED
   IN_PROGRESS
   FINISHED
 }
 
-// =========== USER MODEL ============
+// ================= USER =================
+
 model User {
-  id          String            @id @default(cuid())
-  username    String            @unique
-  email       String            @unique
-  password    String
-  avatarUrl   String?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  id String @id @default(cuid())
+
+  username    String @unique
+  displayName String
+  email       String @unique
+
+  passwordHash String
+  avatarUrl    String?
+
+  status UserStatus @default(ACTIVE)
+
+  lastLoginAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   hostedRooms Room[]            @relation("RoomHost")
   memberships RoomMember[]
-  quizResults QuizParticipant[]
+  results     QuizParticipant[]
+  quizzes     Quiz[]            @relation("QuizCreator")
+
+  @@index([status])
 }
 
-// ============== ROOM MODEL ===============
-model Room {
-  id     String @id @default(cuid())
-  code   String @unique
-  hostId String
-  host   User   @relation("RoomHost", fields: [hostId], references: [id], onDelete: Cascade)
+// ================= QUIZ =================
 
-  status    RoomStatus    @default(WAITING)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  members   RoomMember[]
+model Quiz {
+  id String @id @default(cuid())
+
+  title       String
+  description String?
+
+  status QuizStatus @default(DRAFT)
+
+  creatorId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  creator   User          @relation("QuizCreator", fields: [creatorId], references: [id])
+  questions Question[]
   sessions  QuizSession[]
 
-  @@index([hostId])
+  @@index([creatorId])
+  @@index([status])
 }
 
-// ============== ROOMMEMBER MODEL ===============
+// ================= QUESTION =================
+
+model Question {
+  id String @id @default(cuid())
+
+  quizId String
+
+  text String
+
+  optionA String
+  optionB String
+  optionC String
+  optionD String
+
+  correctAnswer String
+
+  order Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@unique([quizId, order])
+  @@index([quizId])
+}
+
+// ================= ROOM =================
+
+model Room {
+  id String @id @default(cuid())
+
+  code   String @unique
+  name   String
+  hostId String
+
+  status RoomStatus @default(WAITING)
+
+  maxPlayers Int @default(50)
+
+  isPrivate Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  host     User          @relation("RoomHost", fields: [hostId], references: [id])
+  members  RoomMember[]
+  sessions QuizSession[]
+
+  @@index([hostId])
+  @@index([status])
+}
+
+// ================= ROOM MEMBER =================
+
 model RoomMember {
-  id       String   @id @default(cuid())
-  roomId   String
-  userId   String
+  id String @id @default(cuid())
+
+  roomId String
+  userId String
+
   socketId String?
+
   joinedAt DateTime @default(now())
-  room     Room     @relation(fields: [roomId], references: [id])
-  user     User     @relation(fields: [userId], references: [id])
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
 
   @@unique([roomId, userId])
   @@index([roomId])
   @@index([userId])
 }
 
-// ============== QUIZ SESSION MODEL ===============
+// ================= QUIZ SESSION =================
+
 model QuizSession {
-  id                   String            @id @default(cuid())
-  roomId               String
-  room                 Room              @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  status               QuizStatus        @default(NOT_STARTED)
-  currentQuestionIndex Int               @default(0)
-  startedAt            DateTime?
-  finishedAt           DateTime?
-  createdAt            DateTime          @default(now())
-  participants         QuizParticipant[]
+  id String @id @default(cuid())
+
+  roomId String
+  quizId String
+
+  status SessionStatus @default(NOT_STARTED)
+
+  currentQuestionIndex Int @default(0)
+
+  startedAt  DateTime?
+  finishedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  quiz Quiz @relation(fields: [quizId], references: [id])
+
+  participants QuizParticipant[]
 
   @@index([roomId])
+  @@index([quizId])
+  @@index([status])
 }
 
-// ============== QUIZ PARTICIPANT MODEL ===============
+// ================= QUIZ PARTICIPANT =================
+
 model QuizParticipant {
-  id             String      @id @default(cuid())
-  sessionId      String
-  userId         String
-  score          Int         @default(0)
-  correctAnswers Int         @default(0)
-  joinedAt       DateTime    @default(now())
-  session        QuizSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  user           User        @relation(fields: [userId], references: [id])
+  id String @id @default(cuid())
+
+  sessionId String
+  userId    String
+
+  score          Int @default(0)
+  correctAnswers Int @default(0)
+
+  joinedAt DateTime @default(now())
+
+  session QuizSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [id])
 
   @@unique([sessionId, userId])
   @@index([sessionId])
   @@index([userId])
-}
-
-// =========== QUESTION MODEL ==========
-model Question {
-  id            String   @id @default(cuid())
-  text          String
-  optionA       String
-  optionB       String
-  optionC       String
-  optionD       String
-  correctAnswer String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
 }

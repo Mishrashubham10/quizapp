@@ -1,17 +1,48 @@
-import { Server, Socket } from "socket.io";
-import { ROOM_EVENTS } from "../../shared/constants/socket-events";
+import { Server, Socket } from 'socket.io';
+import { roomService } from './room.module';
 
-// REGISTER ROOM SOCKET
-export function registerRoomSocket(io: Server, socket: Socket) {
-    // ROOM CREATE
-    socket.on(ROOM_EVENTS.CREATE, async (payload) => {})
-
-    // ROOM JOIN
-    socket.on(ROOM_EVENTS.JOIN, async (payload) => {})
-
-    // ROOM UPDATE
-    socket.on(ROOM_EVENTS.UPDATE, async (payload) => {})
-
-    // ROOM LEAVE
-    socket.on(ROOM_EVENTS.LEAVE, async (payload) => {})
+interface CreateRoomPayload {
+  name: string;
+  maxPlayers?: number;
+  isPrivate?: boolean;
 }
+
+export const registerRoomSocket = (io: Server, socket: Socket) => {
+  // ============== CREATE ROOM =============
+  socket.on('room:create', async (payload: CreateRoomPayload) => {
+    try {
+      const user = socket.data.user;
+
+      // payload validation
+      if (!payload || typeof payload.name !== 'string') {
+        throw new Error('Invalid room data');
+      }
+
+      const room = await roomService.createRoom(
+        {
+          name: payload.name,
+          hostId: user.id,
+          maxPlayers: payload.maxPlayers,
+          isPrivate: payload.isPrivate,
+        },
+        socket.id,
+      );
+
+      // ADD HOST TO SOCKET.IO ROOM
+      socket.join(room.code);
+
+      // SEND ROOM STATE BACK TO CREATOR
+      socket.emit('room:created', {
+        room,
+      });
+
+      console.log(`Room ${room.code} created by ${user.username}`);
+    } catch (err) {
+      console.error('Room creation failed:', err);
+
+      socket.emit('room:error', {
+        message: err instanceof Error ? err.message : 'Failed to create room',
+      });
+    }
+  });
+};
