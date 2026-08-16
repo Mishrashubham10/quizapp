@@ -32,7 +32,7 @@ enum SessionStatus {
   FINISHED
 }
 
-// ================= USER =================
+// ================= USER-MODEL =================
 
 model User {
   id String @id @default(cuid())
@@ -44,22 +44,23 @@ model User {
   passwordHash String
   avatarUrl    String?
 
-  status UserStatus @default(ACTIVE)
-
+  status      UserStatus @default(ACTIVE)
   lastLoginAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  hostedRooms Room[]            @relation("RoomHost")
-  memberships RoomMember[]
-  results     QuizParticipant[]
-  quizzes     Quiz[]            @relation("QuizCreator")
+  hostedRooms         Room[]               @relation("RoomHost")
+  memberships         RoomMember[]
+  results             QuizParticipant[]
+  quizzes             Quiz[]               @relation("QuizCreator")
+  authSessions        AuthSession[]
+  passwordResetTokens PasswordResetToken[]
 
   @@index([status])
 }
 
-// ================= QUIZ =================
+// ================= QUIZ-MODEL =================
 
 model Quiz {
   id String @id @default(cuid())
@@ -82,7 +83,7 @@ model Quiz {
   @@index([status])
 }
 
-// ================= QUESTION =================
+// ================= QUESTION-MODEL =================
 
 model Question {
   id String @id @default(cuid())
@@ -109,7 +110,7 @@ model Question {
   @@index([quizId])
 }
 
-// ================= ROOM =================
+// ================= ROOM-MODEL =================
 
 model Room {
   id String @id @default(cuid())
@@ -135,7 +136,7 @@ model Room {
   @@index([status])
 }
 
-// ================= ROOM MEMBER =================
+// ================= ROOM-MEMBER-MODEL =================
 
 model RoomMember {
   id String @id @default(cuid())
@@ -155,7 +156,7 @@ model RoomMember {
   @@index([userId])
 }
 
-// ================= QUIZ SESSION =================
+// ================= QUIZ-SESSION-MODEL =================
 
 model QuizSession {
   id String @id @default(cuid())
@@ -182,7 +183,7 @@ model QuizSession {
   @@index([status])
 }
 
-// ================= QUIZ PARTICIPANT =================
+// ================= QUIZ-PARTICIPANT-MODEL =================
 
 model QuizParticipant {
   id String @id @default(cuid())
@@ -201,4 +202,41 @@ model QuizParticipant {
   @@unique([sessionId, userId])
   @@index([sessionId])
   @@index([userId])
+}
+
+// ============ AUTH-SESSION-MODEL =============
+model AuthSession {
+  id               String @id @default(cuid())
+  userId           String
+  refreshTokenHash String @unique
+
+  userAgent String?
+  ipAddress String?
+
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// ============ RESET-PWD-MODEL ==============
+model PasswordResetToken {
+  id        String @id @default(cuid())
+  userId    String
+  tokenHash String @unique
+
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }

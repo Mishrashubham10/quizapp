@@ -1,9 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
-
-interface JWTPayload {
-  userId: string;
-}
+import { verifyAccessToken } from './auth.token';
 
 declare global {
   namespace Express {
@@ -13,34 +10,45 @@ declare global {
   }
 }
 
-export const protect = async (
+export interface AuthenticatedRequest extends Request {
+  user: {
+    id: string;
+  };
+}
+
+export const authenticate = async (
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
-  console.log('Cookies:', req.cookies);
-  console.log('Access Token:', req.cookies.accessToken);
-
   try {
     const accessToken = req.cookies.accessToken;
 
     if (!accessToken) {
       return res.status(401).json({
+        success: false,
         message: 'Unauthorized',
       });
     }
 
-    const decoded = jwt.verify(
-      accessToken,
-      process.env.JWT_ACCESS_SECRET!,
-    ) as JWTPayload;
+    const payload = verifyAccessToken(accessToken);
 
-    req.userId = decoded.userId;
+    if (payload.type !== 'access' || !payload.userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid access token',
+      });
+    }
+
+    (req as AuthenticatedRequest).user = {
+      id: payload.userId,
+    };
 
     next();
   } catch (error) {
     return res.status(401).json({
-      message: 'Invalid or expired token',
+      success: false,
+      message: 'Invalid or expired access token',
     });
   }
 };

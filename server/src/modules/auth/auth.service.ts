@@ -1,90 +1,264 @@
 import bcrypt from 'bcrypt';
 import { prisma } from '../../lib/prisma';
+import { AuthRepository } from './auth.repository';
+import { AuthUser, LoginInput, RegisterInput } from './auth.types';
+import { comparePassword, hashPassword } from './auth.password';
+import { generateRefreshSessionId, hashRefreshToken } from './auth.reset';
+import {
+  generateAccessToken,
+  generateRefreshToken,
+  verifyRefreshToken,
+} from './auth.token';
 
-// =========== REGISTER SERVICE =============
-export const registerUser = async (
-  username: string,
-  email: string,
-  password: string,
-) => {
-  try {
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [{ email }, { username }],
-      },
-    });
+// =========== AUTH-SERVICE ===========
+export class AuthService {
+  constructor(private readonly authRepository: AuthRepository) {}
 
-    if (existingUser) {
-      throw new Error('User with this email or username already exists');
+  // ============ REGISTER-SERVICE ============
+  async register(input: RegisterInput, userAgent?: string, ipAddress?: string) {
+    const username = input.username.trim();
+    const displayName = input.displayName.trim();
+    const email = input.email.trim().toLowerCase();
+
+    if (!username || !displayName || !email) {
+      throw new Error('All fields are required');
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const existingEmail = await this.authRepository.findUserByEmail(email);
 
-    const user = await prisma.user.create({
-      data: {
-        username,
-        displayName: username,
-        email,
-        passwordHash: hashedPassword,
-      },
+    if (existingEmail) {
+      throw new Error('Unable to create account with these details');
+    }
+
+    const existingUsername =
+      await this.authRepository.findUserByUsername(username);
+
+    if (existingUsername) {
+      throw new Error('Unable to create account with these details');
+    }
+
+    const passwordHash = await hashPassword(input.password);
+
+    const user = await this.authRepository.createUser({
+      username,
+      displayName,
+      email,
+      passwordHash,
     });
 
-    return user;
-  } catch (error) {
-    console.error(error);
+    const sessionId = generateRefreshSessionId();
+    const refreshToken = generateRefreshToken(user.id, sessionId);
 
-    throw error;
+    await this.authRepository.createAuthSession({
+      id: sessionId,
+      user: {
+        connect: {
+          id: user.id,
+        },
+      },
+      refreshTokenHash: hashRefreshToken(refreshToken),
+      userAgent,
+      ipAddress,
+      expiresAt: this.getRefreshTokenExpiry(),
+    });
+
+    const accessToken = generateAccessToken(user.id);
+
+    return {
+      user: this.toAuthUser(user),
+      accessToken,
+      refreshToken,
+    };
   }
-};
 
-// LOGIN SERVICE
-export const loginUser = async (email: string, password: string) => {
-  try {
-    const user = await prisma.user.findUnique({
-      where: {
-        email,
-      },
-    });
+  // =========== LOGIN-SERVICE ==============
+  async login(input: LoginInput, userAgent?: string, ipAddress?: string) {
+    const email = input.email.trim().toLowerCase();
+
+    const user = await this.authRepository.findUserByEmail(email);
 
     if (!user) {
-      throw new Error('Invalid credentials');
+      throw new Error('Invalid email or password');
     }
 
-    const isPwdValid = await bcrypt.compare(password, user.passwordHash);
-
-    if (!isPwdValid) {
-      throw new Error('Invalid credentials');
+    if (user.status !== 'ACTIVE') {
+      throw new Error('Account is unavailable');
     }
 
-    return user;
-  } catch (error) {
-    console.error(error);
+    const passwordValid = await comparePassword(
+      input.password,
+      user.passwordHash,
+    );
 
-    throw error;
-  }
-};
+    if (!passwordValid) {
+      throw new Error('Invalid email or password');
+    }
 
-// GET CURRENT USER SERVICE
-export const getCurrentUser = async (userId: string) => {
-  try {
-    const user = await prisma.user.findUnique({
-      where: {
-        id: userId,
+    const sessionId = generateRefreshSessionId();
+    const refreshToken = generateRefreshToken(user.id, sessionId);
+
+    await this.authRepository.createAuthSession({
+      id: sessionId,
+      user: {
+        connect: {
+          id: user.id,
+        },
       },
-
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        avatarUrl: true,
-        createdAt: true,
-      },
+      refreshTokenHash: hashRefreshToken(refreshToken),
+      userAgent,
+      ipAddress,
+      expiresAt: this.getRefreshTokenExpiry(),
     });
 
-    return user;
-  } catch (error) {
-    console.error(error);
+    await this.authRepository.updateUser(user.id, {
+      lastLoginAt: new Date(),
+    });
 
-    throw error;
+    const accessToken = generateAccessToken(user.id);
+
+    return {
+      user: this.toAuthUser(user),
+      accessToken,
+      refreshToken,
+    };
   }
-};
+
+  // =========== GET-CURRENT-USER-SERVICE ============
+  async getCurrentUser(userId: string): Promise<AuthUser> {
+    const user = await this.authRepository.findUserById(userId);
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    if (user.status !== 'ACTIVE') {
+      throw new Error('Account is unavailable');
+    }
+
+    return this.toAuthUser(user);
+  }
+
+  // =========== REFRESH-TOKEN-SERVICE =============
+  async refresh(refreshToken: string, userAgent?: string, ipAddress?: string) {
+    let payload;
+
+    try {
+      payload = verifyRefreshToken(refreshToken);
+    } catch {
+      throw new Error('Invalid or expired refresh token');
+    }
+
+    if (payload.type !== 'refresh' || !payload.sessionId || !payload.userId) {
+      throw new Error('Invalid refresh token');
+    }
+
+    const session = await this.authRepository.findAuthSessionById(
+      payload.sessionId,
+    );
+
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    if (session.revokedAt) {
+      throw new Error('Session has been revoked');
+    }
+
+    if (session.expiresAt <= new Date()) {
+      throw new Error('Session has expired');
+    }
+
+    if (session.userId !== payload.userId) {
+      throw new Error('Invalid refresh session');
+    }
+
+    const tokenHash = hashRefreshToken(refreshToken);
+
+    if (tokenHash !== session.refreshTokenHash) {
+      throw new Error('Invalid refresh token');
+    }
+
+    if (session.user.status !== 'ACTIVE') {
+      throw new Error('Account is unavailable');
+    }
+
+    const newSessionId = generateRefreshSessionId();
+    const newRefreshToken = generateRefreshToken(session.userId, newSessionId);
+
+    await this.authRepository.rotateAuthSession(
+      session.id,
+      newSessionId,
+      hashRefreshToken(newRefreshToken),
+      this.getRefreshTokenExpiry(),
+    );
+
+    const accessToken = generateAccessToken(session.userId);
+
+    return {
+      user: this.toAuthUser(session.user),
+      accessToken,
+      refreshToken: newRefreshToken,
+    };
+  }
+
+  // ============ LOGOUT-SERVICE =============
+  async logout(refreshToken: string) {
+    let payload;
+
+    try {
+      payload = verifyRefreshToken(refreshToken);
+    } catch {
+      return;
+    }
+
+    if (payload.type !== 'refresh' || !payload.sessionId) {
+      return;
+    }
+
+    const session = await this.authRepository.findAuthSessionById(
+      payload.sessionId,
+    );
+
+    if (!session) return;
+
+    if (session.revokedAt) return;
+
+    const tokenHash = hashRefreshToken(refreshToken);
+
+    if (tokenHash !== session.refreshTokenHash) return;
+
+    await this.authRepository.revokeAuthSession(session.id);
+  }
+
+  // =========== LOGOUT-ALL-SERVICE ============
+  async logoutAll(userId: string) {
+    await this.authRepository.revokeAllAuthSession(userId);
+  }
+
+  // ============= HELPERS ============
+  private getRefreshTokenExpiry(): Date {
+    const expiry = new Date();
+
+    expiry.setDate(expiry.getDate() + 7);
+
+    return expiry;
+  }
+
+  private toAuthUser(user: {
+    id: string;
+    username: string;
+    displayName: string;
+    email: string;
+    avatarUrl: string | null;
+    status: string;
+  }): AuthUser {
+    return {
+      id: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      email: user.email,
+      avatarUrl: user.avatarUrl,
+      status: user.status,
+    };
+  }
+}

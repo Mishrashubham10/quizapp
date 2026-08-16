@@ -1,8 +1,14 @@
 import { Request, Response } from 'express';
-import { registerUser, loginUser, getCurrentUser } from './auth.service';
-import { generateAccessToken, generateRefreshToken } from './jwt';
 
 import jwt from 'jsonwebtoken';
+import { authService } from './auth.module';
+import {
+  clearAuthCookies,
+  getRefreshToken,
+  setAuthCookies,
+} from './auth.cookies';
+import { AuthenticatedRequest } from './auth.middleware';
+import { getUserId } from '../../shared/utils/get-user-id';
 
 /*
 ======== REGISTER CONTROLLER ===========
@@ -11,29 +17,31 @@ import jwt from 'jsonwebtoken';
 */
 export const register = async (req: Request, res: Response) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, displayName, email, password } = req.body;
 
-    console.log(req.body);
+    const result = await authService.register(
+      {
+        username,
+        displayName,
+        email,
+        password,
+      },
+      req.get('user-agent') ?? undefined,
+      req.ip,
+    );
 
-    if (!username || !email || !password) {
-      return res.status(400).json({
-        message: 'All fields are required',
-      });
-    }
-
-    const user = await registerUser(username, email, password);
+    setAuthCookies(res, result.accessToken, result.refreshToken);
 
     return res.status(201).json({
-      message: 'User registered successfully',
-
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-      },
+      success: true,
+      message: 'Account created successfully',
+      user: result.user,
     });
   } catch (error) {
+    console.error('Register error:', error);
+
     return res.status(400).json({
+      success: false,
       message: error instanceof Error ? error.message : 'Registration failed',
     });
   }
@@ -48,42 +56,28 @@ export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({
-        message: 'All fields are required',
-      });
-    }
+    const result = await authService.login(
+      {
+        email,
+        password,
+      },
+      req.get('user-agent') ?? undefined,
+      req.ip,
+    );
 
-    const user = await loginUser(email, password);
-
-    const accessToken = generateAccessToken(user.id);
-    const refreshToken = generateRefreshToken(user.id);
-
-    res.cookie('accessToken', accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 15 * 60 * 1000,
-    });
-
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    setAuthCookies(res, result.accessToken, result.refreshToken);
 
     return res.status(200).json({
+      success: true,
       message: 'Login successful',
-
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-      },
+      user: result.user,
     });
   } catch (error) {
+    console.log('Login error:', error);
+
     return res.status(400).json({
+      success: false,
+
       message: error instanceof Error ? error.message : 'Login failed',
     });
   }
@@ -95,12 +89,30 @@ export const login = async (req: Request, res: Response) => {
 ======= ENDPOINT - /API/V1/AUTH/LOGOUT =========
 */
 export const logout = async (req: Request, res: Response) => {
-  res.clearCookie('accessToken');
-  res.clearCookie('refreshToken');
+  try {
+    const refreshToken = getRefreshToken(req);
 
-  return res.json({
-    message: 'Logged out successfully',
-  });
+    if (refreshToken) {
+      await authService.logout(refreshToken);
+    }
+
+    clearAuthCookies(res);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Logged out successfully',
+    });
+  } catch (error) {
+    console.log('Logout error:', error);
+
+    // STILL CLEAR COOKIES
+    clearAuthCookies(res);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Logged out successfully',
+    });
+  }
 };
 
 /*
@@ -110,24 +122,21 @@ export const logout = async (req: Request, res: Response) => {
 */
 export const getMe = async (req: Request, res: Response) => {
   try {
-    if (!req.userId) {
-      return res.status(401).json({
-        message: 'Unauthorized',
-      });
-    }
+    const userId = getUserId(req);
 
-    const user = await getCurrentUser(req.userId);
+    const user = await authService.getCurrentUser(userId);
 
-    if (!user) {
-      return res.status(404).json({
-        message: 'User not found',
-      });
-    }
-
-    res.status(200).json(user);
+    return res.status(200).json({
+      success: true,
+      user,
+    });
   } catch (error) {
-    return res.status(400).json({
-      message: error instanceof Error ? error.message : 'Something went wrong!',
+    console.log('Get current user error:', error);
+
+    res.status(401).json({
+      success: false,
+      message:
+        error instanceof Error ? error.message : 'Unable to get current user',
     });
   }
 };
@@ -137,38 +146,71 @@ export const getMe = async (req: Request, res: Response) => {
 ======== ROUTE - POST ===============
 ======= ENDPOINT - /API/V1/AUTH/REFRESH =========
 */
-export const refresh = (req: Request, res: Response) => {
+export const refresh = async (req: Request, res: Response) => {
   try {
-    const refreshToken = req.cookies.refreshToken;
+    const refreshToken = getRefreshToken(req);
 
     if (!refreshToken) {
+      clearAuthCookies(res);
+
       return res.status(401).json({
-        message: 'Refresh token missing',
+        success: false,
+        message: 'Refresh token required',
       });
     }
 
-    const decoded = jwt.verify(
+    const result = await authService.refresh(
       refreshToken,
-      process.env.JWT_REFRESH_SECRET!,
-    ) as {
-      userId: string;
-    };
+      req.get('user-agent') ?? undefined,
+      req.ip,
+    );
 
-    const accessToken = generateAccessToken(decoded.userId);
+    setAuthCookies(res, result.accessToken, result.refreshToken);
 
-    res.cookie('accessToken', accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 15 * 60 * 1000,
-    });
-
-    return res.json({
-      message: 'Access token refreshed',
+    return res.status(200).json({
+      success: true,
+      message: 'Token refreshed successfully',
+      user: result.user,
     });
   } catch (error) {
-    return res.status(401).json({
-      message: 'Invalid refresh token',
+    console.log('Refresh error:', error);
+
+    clearAuthCookies(res);
+
+    res.status(400).json({
+      success: false,
+      message:
+        error instanceof Error ? error.message : 'Unable to refresh session',
+    });
+  }
+};
+
+/*
+======== LOGOUT-ALL-CONTROLLER ===========
+======== ROUTE - POST ===============
+======= ENDPOINT - /API/V1/AUTH/LOGOUTALL =========
+*/
+export const logoutAll = async (req: Request, res: Response) => {
+  try {
+    const userId = getUserId(req);
+
+    await authService.logoutAll(userId);
+
+    clearAuthCookies(res);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Logged out from all devices',
+    });
+  } catch (error) {
+    console.log('Logout all error:', error);
+
+    res.status(400).json({
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Unable to logout from all devices',
     });
   }
 };
