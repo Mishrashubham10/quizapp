@@ -3,7 +3,12 @@ import { prisma } from '../../lib/prisma';
 import { AuthRepository } from './auth.repository';
 import { AuthUser, LoginInput, RegisterInput } from './auth.types';
 import { comparePassword, hashPassword } from './auth.password';
-import { generateRefreshSessionId, hashRefreshToken } from './auth.reset';
+import {
+  generatePasswordResetToken,
+  generateRefreshSessionId,
+  hashPasswordResetToken,
+  hashRefreshToken,
+} from './auth.reset';
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -235,7 +240,7 @@ export class AuthService {
     await this.authRepository.revokeAllAuthSession(userId);
   }
 
-  // ============ UPDATE-PASSWORD-SERVICE ============
+  // ============ RESET-PASSWORD-SERVICE ============
   async changePassword(
     userId: string,
     currentPassword: string,
@@ -265,6 +270,72 @@ export class AuthService {
     await this.authRepository.updatePassword(userId, newPasswordHash);
 
     await this.authRepository.revokeAllAuthSession(userId);
+  }
+
+  // ============ FORGOT-PASSWORD-SERVICE ============
+  async forgotPassword(email: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const user = await this.authRepository.findUserByEmail(normalizedEmail);
+
+    /**
+     * IMPORTANT:
+     * Don't reveall whether the email exists.
+     */
+    if (!user || user.status !== 'ACTIVE') {
+      return;
+    }
+
+    // INVALIDATE PREVIOUS RESET TOKEN
+    await this.authRepository.invalidatePasswordResetTokens(user.id);
+
+    // GENERATE PLAIN TOKEN
+    const token = generatePasswordResetToken();
+
+    // STORE ONLY HASH
+    const tokenHash = hashPasswordResetToken(token);
+
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    await this.authRepository.createPasswordResetToken({
+      userId: user.id,
+      tokenHash,
+      expiresAt,
+    });
+
+    /**
+     * TEMPORARY:
+     * WE'LL REPLACE THIS WITH EMAIL DELIVERY.
+     */
+    console.log(`PASSWORD RESET TOKEN for ${user.email}:`, token);
+  }
+
+  // =========== RESET-PWD-SERVICE ============
+  async resetPassword(token: string, newPassword: string) {
+    const tokenHash = hashPasswordResetToken(token);
+
+    const resetToken =
+      await this.authRepository.findPasswordResetToken(tokenHash);
+
+    if (!resetToken) {
+      throw new Error('Invalid or expired reset token');
+    }
+
+    if (resetToken.usedAt) {
+      throw new Error('Invalid or expired reset token');
+    }
+
+    if (resetToken.expiresAt.getTime() <= Date.now()) {
+      throw new Error('Invalid or expired reset token');
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+
+    await this.authRepository.resetPassword(
+      resetToken.userId,
+      resetToken.id,
+      passwordHash,
+    );
   }
 
   // ============= HELPERS ============

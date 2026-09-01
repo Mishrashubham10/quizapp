@@ -1,16 +1,18 @@
 import { Router } from 'express';
 import {
   changePwd,
+  forgotPwd,
   getMe,
   login,
   logout,
   logoutAll,
   refresh,
   register,
+  resetPwd,
 } from './auth.controller';
 import { authenticate } from './auth.middleware';
 import { validate } from '../../middleware/validate';
-import { changePasswordSchema } from './auth.validation';
+import { changePasswordSchema, forgotPasswordSchema, resetPasswordSchema } from './auth.validation';
 
 const router = Router();
 
@@ -25,6 +27,8 @@ router.post(
   validate(changePasswordSchema),
   changePwd,
 );
+router.post('/forgot-password', validate(forgotPasswordSchema), forgotPwd);
+router.post('/reset-password', validate(resetPasswordSchema), resetPwd);
 
 router.post('/logout', logout);
 router.post('/logout-all', authenticate, logoutAll);

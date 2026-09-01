@@ -137,12 +137,67 @@ export class AuthRepository {
   }
 
   // ============ PASSWORD-RESET ============
-  async createPasswordResetToken(data: Prisma.PasswordResetTokenCreateInput) {
+  async createPasswordResetToken(data: {
+    userId: string;
+    tokenHash: string;
+    expiresAt: Date;
+  }) {
     return this.db.passwordResetToken.create({
       data,
     });
   }
 
+  // ============ RESET-PWD-TRANSACTION ===========
+  async resetPassword(
+    userId: string,
+    resetTokenId: string,
+    passwordHash: string,
+  ) {
+    return this.db.$transaction([
+      this.db.user.update({
+        where: {
+          id: userId,
+        },
+        data: {
+          passwordHash,
+        },
+      }),
+
+      this.db.authSession.updateMany({
+        where: {
+          userId,
+          revokedAt: null,
+        },
+        data: {
+          revokedAt: new Date(),
+        },
+      }),
+
+      this.db.passwordResetToken.update({
+        where: {
+          id: resetTokenId,
+        },
+        data: {
+          usedAt: new Date(),
+        },
+      }),
+    ]);
+  }
+
+  // =========== INVALIDATE-PWD-RESET-TOKEN ==========
+  async invalidatePasswordResetTokens(userId: string) {
+    return this.db.passwordResetToken.updateMany({
+      where: {
+        userId,
+        usedAt: null,
+      },
+      data: {
+        usedAt: new Date(),
+      },
+    });
+  }
+
+  // ============ FIND-PWD-RESET-TOKEN ===========
   async findPasswordResetToken(tokenHash: string) {
     return this.db.passwordResetToken.findUnique({
       where: {
@@ -155,6 +210,7 @@ export class AuthRepository {
     });
   }
 
+  // =========== MARK-PWD-RESET-TOKEN-USER ==========
   async markPasswordResetTokenUser(id: string) {
     return this.db.passwordResetToken.update({
       where: {
@@ -166,6 +222,7 @@ export class AuthRepository {
     });
   }
 
+  // ============ DELETE-PWD-RESET-TOKEN ===========
   async daletePasswordResetToken(userId: string) {
     return this.db.passwordResetToken.deleteMany({
       where: {
@@ -174,6 +231,7 @@ export class AuthRepository {
     });
   }
 
+  // ============ FIND-USER-PWD-CHANGE ===========
   async findUserForPasswordChange(userId: string) {
     return this.db.user.findUnique({
       where: {
@@ -187,6 +245,7 @@ export class AuthRepository {
     });
   }
 
+  // ============ UPDATE-PWD ===========
   async updatePassword(userId: string, passwordHash: string) {
     return this.db.user.update({
       where: {
