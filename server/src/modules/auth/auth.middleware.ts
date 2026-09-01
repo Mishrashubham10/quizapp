@@ -1,5 +1,4 @@
 import { NextFunction, Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
 import { verifyAccessToken } from './auth.token';
 
 declare global {
@@ -22,12 +21,12 @@ export const authenticate = async (
   next: NextFunction,
 ) => {
   try {
-    const accessToken = req.cookies.accessToken;
+    const accessToken = req.cookies?.accessToken;
 
     if (!accessToken) {
       return res.status(401).json({
         success: false,
-        message: 'Unauthorized',
+        message: 'Authentication required',
       });
     }
 
@@ -40,9 +39,7 @@ export const authenticate = async (
       });
     }
 
-    (req as AuthenticatedRequest).user = {
-      id: payload.userId,
-    };
+    (req as AuthenticatedRequest).userId = payload.userId;
 
     next();
   } catch (error) {

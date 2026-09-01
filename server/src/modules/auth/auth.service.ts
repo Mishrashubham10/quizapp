@@ -235,6 +235,38 @@ export class AuthService {
     await this.authRepository.revokeAllAuthSession(userId);
   }
 
+  // ============ UPDATE-PASSWORD-SERVICE ============
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ) {
+    const user = await this.authRepository.findUserForPasswordChange(userId);
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    if (user.status !== 'ACTIVE') {
+      throw new Error('Account is unavailable');
+    }
+
+    const isCurrentPwdValid = await comparePassword(
+      currentPassword,
+      user.passwordHash,
+    );
+
+    if (!isCurrentPwdValid) {
+      throw new Error('Current password is incorrect');
+    }
+
+    const newPasswordHash = await hashPassword(newPassword);
+
+    await this.authRepository.updatePassword(userId, newPasswordHash);
+
+    await this.authRepository.revokeAllAuthSession(userId);
+  }
+
   // ============= HELPERS ============
   private getRefreshTokenExpiry(): Date {
     const expiry = new Date();

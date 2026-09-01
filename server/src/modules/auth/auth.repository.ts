@@ -173,4 +173,28 @@ export class AuthRepository {
       },
     });
   }
+
+  async findUserForPasswordChange(userId: string) {
+    return this.db.user.findUnique({
+      where: {
+        id: userId,
+      },
+      select: {
+        id: true,
+        passwordHash: true,
+        status: true,
+      },
+    });
+  }
+
+  async updatePassword(userId: string, passwordHash: string) {
+    return this.db.user.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        passwordHash,
+      },
+    });
+  }
 }

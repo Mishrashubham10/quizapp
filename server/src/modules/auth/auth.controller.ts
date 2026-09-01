@@ -9,6 +9,7 @@ import {
 } from './auth.cookies';
 import { AuthenticatedRequest } from './auth.middleware';
 import { getUserId } from '../../shared/utils/get-user-id';
+import { success } from 'zod';
 
 /*
 ======== REGISTER CONTROLLER ===========
@@ -181,6 +182,45 @@ export const refresh = async (req: Request, res: Response) => {
       success: false,
       message:
         error instanceof Error ? error.message : 'Unable to refresh session',
+    });
+  }
+};
+
+/*
+======== CHANGE-PWD-CONTROLLER ===========
+======== ROUTE - POST ===============
+======= ENDPOINT - /API/V1/AUTH/CHANGE-PWD =========
+*/
+export const changePwd = async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId as string;
+
+    const { currentPassword, newPassword } = req.body;
+
+    await authService.changePassword(userId, currentPassword, newPassword);
+
+    clearAuthCookies(res);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Password changed successfully. Please login again.',
+    });
+  } catch (error) {
+    console.error('Change password error:', error);
+
+    const message =
+      error instanceof Error ? error.message : 'Unable to change password';
+
+    const status =
+      message === 'Current password is incorrect'
+        ? 401
+        : message === 'User not found'
+          ? 404
+          : 400;
+
+    return res.status(status).json({
+      success: false,
+      message,
     });
   }
 };
